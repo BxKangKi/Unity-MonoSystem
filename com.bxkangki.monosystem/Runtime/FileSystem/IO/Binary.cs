@@ -1,23 +1,69 @@
 
 using System.IO;
+using UnityEngine;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace FileSystem.IO
 {
     public struct Binary
     {
+
+        public static float ReadFloatFromBytes(NativeArray<byte> array, int startIndex)
+        {
+            // Burst-friendly 방식으로 포인터 참조
+            unsafe
+            {
+                byte* bytePtr = (byte*)array.GetUnsafeReadOnlyPtr() + startIndex;
+                return *(float*)bytePtr;
+            }
+        }
+
+
+        public static int ReadIntFromBytes(NativeArray<byte> array, int startIndex)
+        {
+            // Burst-friendly 방식으로 포인터 참조
+            unsafe
+            {
+                byte* bytePtr = (byte*)array.GetUnsafeReadOnlyPtr() + startIndex;
+                return *(int*)bytePtr;
+            }
+        }
+
+
         #region Numbers
         public struct Int32
         {
+            // Burst 컴파일러를 사용한 Job 정의
+            [BurstCompile]
+            private struct ConvertByteToIntJob : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<int> IntArray;
+
+                public void Execute(int index)
+                {
+                    int byteIndex = index * sizeof(int);
+                    IntArray[index] = ReadIntFromBytes(ByteArray, byteIndex);
+                }
+            }
+
             public static int[] ReadArray(BinaryReader reader)
             {
                 int count = reader.ReadInt32();
-                var result = new int[count];
-                for (int i = 0; i < count; i++)
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * sizeof(int)), Allocator.TempJob);
+                using var array = new NativeArray<int>(count, Allocator.TempJob);
+                var job = new ConvertByteToIntJob()
                 {
-                    result[i] = reader.ReadInt32();
-                }
-                return result;
+                    ByteArray = bytes,
+                    IntArray = array
+                };
+                var handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                return array.ToArray();
             }
 
             public static void Write(int[] array, BinaryWriter writer)
@@ -79,6 +125,25 @@ namespace FileSystem.IO
         #region Vector
         public struct Vector2
         {
+            // Burst 컴파일러를 사용한 Job 정의
+            [BurstCompile]
+            private struct ConvertByteToVector2Job : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<UnityEngine.Vector2> VectorArray;
+                public void Execute(int index)
+                {
+                    int byteIndex = index * 2 * sizeof(float);
+
+                    // ByteArray에서 각 요소를 직접 변환하여 Vector3를 만듭니다.
+                    UnityEngine.Vector3 vector = new UnityEngine.Vector2(
+                        ReadFloatFromBytes(ByteArray, byteIndex),
+                        ReadFloatFromBytes(ByteArray, byteIndex + sizeof(float))
+                    );
+                    VectorArray[index] = vector;
+                }
+            }
+
             public static UnityEngine.Vector2 Read(BinaryReader reader)
             {
                 float x = reader.ReadSingle();
@@ -89,12 +154,16 @@ namespace FileSystem.IO
             public static UnityEngine.Vector2[] ReadArray(BinaryReader reader)
             {
                 int count = reader.ReadInt32();
-                var result = new UnityEngine.Vector2[count];
-                for (int i = 0; i < count; i++)
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * sizeof(float) * 2), Allocator.TempJob);
+                using var vector = new NativeArray<UnityEngine.Vector2>(count, Allocator.TempJob);
+                var job = new ConvertByteToVector2Job()
                 {
-                    result[i] = Read(reader);
-                }
-                return result;
+                    ByteArray = bytes,
+                    VectorArray = vector
+                };
+                var handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                return vector.ToArray();
             }
 
             public static void Write(UnityEngine.Vector2 vector, BinaryWriter writer)
@@ -118,6 +187,27 @@ namespace FileSystem.IO
 
         public struct Vector3
         {
+            // Burst 컴파일러를 사용한 Job 정의
+            [BurstCompile]
+            private struct ConvertByteToVector3Job : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<UnityEngine.Vector3> VectorArray;
+
+                public void Execute(int index)
+                {
+                    int byteIndex = index * 3 * sizeof(float);
+
+                    // ByteArray에서 각 요소를 직접 변환하여 Vector3를 만듭니다.
+                    UnityEngine.Vector3 vector = new UnityEngine.Vector3(
+                        ReadFloatFromBytes(ByteArray, byteIndex),
+                        ReadFloatFromBytes(ByteArray, byteIndex + sizeof(float)),
+                        ReadFloatFromBytes(ByteArray, byteIndex + 2 * sizeof(float))
+                    );
+                    VectorArray[index] = vector;
+                }
+            }
+
             public static UnityEngine.Vector3 Read(BinaryReader reader)
             {
                 float x = reader.ReadSingle();
@@ -129,12 +219,16 @@ namespace FileSystem.IO
             public static UnityEngine.Vector3[] ReadArray(BinaryReader reader)
             {
                 int count = reader.ReadInt32();
-                var result = new UnityEngine.Vector3[count];
-                for (int i = 0; i < count; i++)
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * sizeof(float) * 3), Allocator.TempJob);
+                using var vector = new NativeArray<UnityEngine.Vector3>(count, Allocator.TempJob);
+                var job = new ConvertByteToVector3Job()
                 {
-                    result[i] = Read(reader);
-                }
-                return result;
+                    ByteArray = bytes,
+                    VectorArray = vector
+                };
+                var handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                return vector.ToArray();
             }
 
             public static void Write(UnityEngine.Vector3 vector, BinaryWriter writer)
@@ -158,6 +252,28 @@ namespace FileSystem.IO
 
         public struct Vector4
         {
+            // Burst 컴파일러를 사용한 Job 정의
+            [BurstCompile]
+            private struct ConvertByteToVector4Job : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<UnityEngine.Vector4> VectorArray;
+
+                public void Execute(int index)
+                {
+                    int byteIndex = index * 4 * sizeof(float);
+
+                    // ByteArray에서 각 요소를 직접 변환하여 Vector3를 만듭니다.
+                    UnityEngine.Vector4 vector = new UnityEngine.Vector4(
+                        ReadFloatFromBytes(ByteArray, byteIndex),
+                        ReadFloatFromBytes(ByteArray, byteIndex + sizeof(float)),
+                        ReadFloatFromBytes(ByteArray, byteIndex + 2 * sizeof(float)),
+                        ReadFloatFromBytes(ByteArray, byteIndex + 3 * sizeof(float))
+                    );
+                    VectorArray[index] = vector;
+                }
+            }
+
             public static UnityEngine.Vector4 Read(BinaryReader reader)
             {
                 float x = reader.ReadSingle();
@@ -170,12 +286,16 @@ namespace FileSystem.IO
             public static UnityEngine.Vector4[] ReadArray(BinaryReader reader)
             {
                 int count = reader.ReadInt32();
-                var result = new UnityEngine.Vector4[count];
-                for (int i = 0; i < count; i++)
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * sizeof(float) * 4), Allocator.TempJob);
+                using var vector = new NativeArray<UnityEngine.Vector4>(count, Allocator.TempJob);
+                var job = new ConvertByteToVector4Job()
                 {
-                    result[i] = Read(reader);
-                }
-                return result;
+                    ByteArray = bytes,
+                    VectorArray = vector
+                };
+                var handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                return vector.ToArray();
             }
 
             public static void Write(UnityEngine.Vector4 vector, BinaryWriter writer)
@@ -202,6 +322,28 @@ namespace FileSystem.IO
         #region Color32
         public struct Color32
         {
+
+            // Burst 컴파일러를 사용한 Job 정의
+            [BurstCompile]
+            private struct ConvertByteToVector4Job : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<UnityEngine.Color32> ColorArray;
+
+                public void Execute(int index)
+                {
+                    int byteIndex = index * 4;
+                    // ByteArray에서 각 요소를 직접 변환하여 Vector3를 만듭니다.
+                    UnityEngine.Color32 vector = new UnityEngine.Color32(
+                        ByteArray[byteIndex],
+                        ByteArray[byteIndex + 1],
+                        ByteArray[byteIndex + 2],
+                        ByteArray[byteIndex + 3]
+                    );
+                    ColorArray[index] = vector;
+                }
+            }
+
             public static UnityEngine.Color32 Read(BinaryReader reader)
             {
                 byte r = reader.ReadByte();
@@ -214,12 +356,16 @@ namespace FileSystem.IO
             public static UnityEngine.Color32[] ReadArray(BinaryReader reader)
             {
                 int count = reader.ReadInt32();
-                var result = new UnityEngine.Color32[count];
-                for (int i = 0; i < count; i++)
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * 4), Allocator.TempJob);
+                using var vector = new NativeArray<UnityEngine.Color32>(count, Allocator.TempJob);
+                var job = new ConvertByteToVector4Job()
                 {
-                    result[i] = Read(reader);
-                }
-                return result;
+                    ByteArray = bytes,
+                    ColorArray = vector
+                };
+                var handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                return vector.ToArray();
             }
 
 
@@ -247,6 +393,41 @@ namespace FileSystem.IO
         #region Matrix4x4
         public struct Matrix4x4
         {
+            [BurstCompile]
+            private struct ConvertByteToMatrix4x4Job : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<UnityEngine.Matrix4x4> MatrixArray;
+
+                public void Execute(int index)
+                {
+                    int byteIndex = index * 16 * sizeof(float);
+
+                    // ByteArray에서 각 요소를 직접 변환하여 Matrix4x4를 만듭니다.
+                    UnityEngine.Matrix4x4 matrix = new UnityEngine.Matrix4x4
+                    {
+                        m00 = ReadFloatFromBytes(ByteArray, byteIndex),
+                        m01 = ReadFloatFromBytes(ByteArray, byteIndex + sizeof(float)),
+                        m02 = ReadFloatFromBytes(ByteArray, byteIndex + 2 * sizeof(float)),
+                        m03 = ReadFloatFromBytes(ByteArray, byteIndex + 3 * sizeof(float)),
+                        m10 = ReadFloatFromBytes(ByteArray, byteIndex + 4 * sizeof(float)),
+                        m11 = ReadFloatFromBytes(ByteArray, byteIndex + 5 * sizeof(float)),
+                        m12 = ReadFloatFromBytes(ByteArray, byteIndex + 6 * sizeof(float)),
+                        m13 = ReadFloatFromBytes(ByteArray, byteIndex + 7 * sizeof(float)),
+                        m20 = ReadFloatFromBytes(ByteArray, byteIndex + 8 * sizeof(float)),
+                        m21 = ReadFloatFromBytes(ByteArray, byteIndex + 9 * sizeof(float)),
+                        m22 = ReadFloatFromBytes(ByteArray, byteIndex + 10 * sizeof(float)),
+                        m23 = ReadFloatFromBytes(ByteArray, byteIndex + 11 * sizeof(float)),
+                        m30 = ReadFloatFromBytes(ByteArray, byteIndex + 12 * sizeof(float)),
+                        m31 = ReadFloatFromBytes(ByteArray, byteIndex + 13 * sizeof(float)),
+                        m32 = ReadFloatFromBytes(ByteArray, byteIndex + 14 * sizeof(float)),
+                        m33 = ReadFloatFromBytes(ByteArray, byteIndex + 15 * sizeof(float)),
+                    };
+
+                    MatrixArray[index] = matrix;
+                }
+            }
+
             public static UnityEngine.Matrix4x4 Read(BinaryReader reader)
             {
                 return new UnityEngine.Matrix4x4
@@ -273,12 +454,17 @@ namespace FileSystem.IO
             public static UnityEngine.Matrix4x4[] ReadArray(BinaryReader reader)
             {
                 int count = reader.ReadInt32();
-                var result = new UnityEngine.Matrix4x4[count];
-                for (int i = 0; i < count; i++)
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * 16 * sizeof(float)), Allocator.TempJob);
+                using var matrix = new NativeArray<UnityEngine.Matrix4x4>(count, Allocator.TempJob);
+                ConvertByteToMatrix4x4Job job = new ConvertByteToMatrix4x4Job
                 {
-                    result[i] = Read(reader);
-                }
-                return result;
+                    ByteArray = bytes,
+                    MatrixArray = matrix
+                };
+
+                JobHandle handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                return matrix.ToArray();
             }
 
 
