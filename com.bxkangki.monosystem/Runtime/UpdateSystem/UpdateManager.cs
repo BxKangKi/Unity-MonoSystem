@@ -13,9 +13,7 @@ namespace MonoSystem
         private static readonly List<IPostUpdate> postUpdates = new List<IPostUpdate>(0);
         private static readonly List<IFixedUpdate> fixedUpdates = new List<IFixedUpdate>(0);
         private static readonly List<ILateUpdate> lateUpdates = new List<ILateUpdate>(0);
-
         private static CancellationTokenSource disable = new CancellationTokenSource();
-
         public static void Update()
         {
             for (int i = 0; i < startUpdates.Count; i++)
@@ -63,12 +61,13 @@ namespace MonoSystem
 
         public static void OnEnable()
         {
-            CancellationExtension.Reset(ref disable);
+            disable?.Dispose();
+            disable = new CancellationTokenSource();
         }
 
         public static void OnDisable()
         {
-            CancellationExtension.Cancel(ref disable);
+            disable?.Cancel();
         }
 
         public static void Add<T>(T value) where T : IUpdateSystem
