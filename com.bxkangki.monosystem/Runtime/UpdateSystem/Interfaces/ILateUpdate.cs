@@ -2,6 +2,6 @@ namespace MonoSystem
 {
     public interface ILateUpdate : IUpdateSystem
     {
-        void OnLateUpdate();
+        void OnLateUpdate(int priority);
     }
 }

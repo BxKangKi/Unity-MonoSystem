@@ -2,12 +2,13 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace MonoSystem
 {
     public struct NativeArrayUtils
     {
-        public static NativeArray<float> FloatArray(float value, int count)
+        public static NativeArray<float> ToFloatArray(float value, int count)
         {
             var result = new NativeArray<float>(count, Allocator.TempJob);
             var job = new FloatArrayJob()
@@ -16,14 +17,14 @@ namespace MonoSystem
                 value = value
             };
 
-            var handle = job.Schedule(count, JobsConfig.InnerLoopBatchCount);
+            var handle = job.Schedule(count, SystemInfo.processorCount);
             handle.Complete();
 
             return result;
         }
 
 
-        public static NativeArray<float3> Float3Array(float3 value, int count)
+        public static NativeArray<float3> ToFloat3Array(float3 value, int count)
         {
             var result = new NativeArray<float3>(count, Allocator.TempJob);
             var job = new Float3ArrayJob()
@@ -32,7 +33,7 @@ namespace MonoSystem
                 value = value
             };
 
-            var handle = job.Schedule(count, JobsConfig.InnerLoopBatchCount);
+            var handle = job.Schedule(count, SystemInfo.processorCount);
             handle.Complete();
 
             return result;

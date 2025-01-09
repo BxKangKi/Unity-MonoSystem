@@ -6,8 +6,15 @@ using System.Threading.Tasks;
 
 namespace FileSystem
 {
-    public struct Compression
+    public readonly struct Compression
     {
+        public static ZipArchiveEntry TryGetEntry(ZipArchive archive, string name)
+        {
+            var entry = archive.GetEntry(name);
+            if (entry == null) entry = archive.CreateEntry(name);
+            return entry;
+        }
+
         public static byte[] Compress(byte[] source)
         {
             byte[] result;

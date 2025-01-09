@@ -22,7 +22,7 @@ namespace MonoSystem
                 distance = distance,
                 origin = origin
             };
-            JobHandle handle = job.Schedule(count, JobsConfig.InnerLoopBatchCount);
+            JobHandle handle = job.Schedule(count, -1);
             handle.Complete();
             FindShortest(distance, out index);
             outPos = position[index];

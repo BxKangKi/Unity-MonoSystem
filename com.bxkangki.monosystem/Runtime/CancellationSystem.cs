@@ -1,8 +1,7 @@
 using System.Threading;
-using MonoSystem;
 using UnityEngine;
 
-public class CancellationSystem : MonoBehaviour
+public sealed class CancellationSystem : MonoBehaviour
 {
     private void Awake()
     {

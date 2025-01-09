@@ -1,12 +1,9 @@
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 namespace FileSystem
 {
-    public struct Serialization
+    public readonly struct Serialization
     {
         /// <summary>
         /// Deserialize object from byte array.

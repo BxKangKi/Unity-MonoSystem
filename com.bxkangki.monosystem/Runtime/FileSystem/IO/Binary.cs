@@ -11,6 +11,15 @@ namespace FileSystem.IO
 {
     public struct Binary
     {
+        public static FixedString64Bytes ReadFixedString64BytesFromBytes(NativeArray<byte> array, int startIndex)
+        {
+            // Burst-friendly 방식으로 포인터 참조
+            unsafe
+            {
+                byte* bytePtr = (byte*)array.GetUnsafeReadOnlyPtr() + startIndex;
+                return *(FixedString64Bytes*)bytePtr;
+            }
+        }
 
         public static float ReadFloatFromBytes(NativeArray<byte> array, int startIndex)
         {
@@ -22,7 +31,6 @@ namespace FileSystem.IO
             }
         }
 
-
         public static int ReadIntFromBytes(NativeArray<byte> array, int startIndex)
         {
             // Burst-friendly 방식으로 포인터 참조
@@ -33,6 +41,69 @@ namespace FileSystem.IO
             }
         }
 
+        #region String
+        public struct String
+        {
+            // Burst 컴파일러를 사용한 Job 정의
+            [BurstCompile]
+            private struct ConvertByteToFixedString512BytesJob : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<FixedString512Bytes> StringArray;
+                public void Execute(int index)
+                {
+                    int byteIndex = index * 2 * sizeof(float);
+                    // ByteArray에서 각 요소를 직접 변환하여 Vector3를 만듭니다.
+                    FixedString512Bytes str = ReadFixedString64BytesFromBytes(ByteArray, byteIndex);
+                    StringArray[index] = str;
+                }
+            }
+
+            public static string[] ReadArray(BinaryReader reader)
+            {
+                int count = reader.ReadInt32();
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * sizeof(float) * 2), Allocator.TempJob);
+                using var str = new NativeArray<FixedString512Bytes>(count, Allocator.TempJob);
+                var job = new ConvertByteToFixedString512BytesJob()
+                {
+                    ByteArray = bytes,
+                    StringArray = str
+                };
+                var handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                string[] array = new string[str.Length];
+                for (int i = 0; i < str.Length; i++)
+                {
+                    array[i] = str[i].ToString();
+                }
+                return array;
+            }
+
+            public static void Write(string str, BinaryWriter writer)
+            {
+                var fixedstr = new FixedString512Bytes(str);
+                int size = UnsafeUtility.SizeOf<FixedString512Bytes>();
+                NativeArray<byte> bytes = new NativeArray<byte>(size, Allocator.Temp);
+                unsafe
+                {
+                    void* ptr = UnsafeUtility.AddressOf(ref fixedstr);
+                    UnsafeUtility.MemCpy(bytes.GetUnsafePtr(), ptr, size);
+                }
+                writer.Write(bytes);
+            }
+
+
+            public static void Write(string[] array, BinaryWriter writer)
+            {
+                int count = array.Length;
+                writer.Write(count);
+                for (int i = 0; i < count; i++)
+                {
+                    Write(array[i], writer);
+                }
+            }
+        }
+        #endregion
 
         #region Numbers
         public struct Int32
@@ -67,6 +138,49 @@ namespace FileSystem.IO
             }
 
             public static void Write(int[] array, BinaryWriter writer)
+            {
+                int count = array.Length;
+                writer.Write(count);
+                for (int i = 0; i < count; i++)
+                {
+                    writer.Write(array[i]);
+                }
+            }
+        }
+
+
+        public struct Float
+        {
+            // Burst 컴파일러를 사용한 Job 정의
+            [BurstCompile]
+            private struct ConvertByteToFloatJob : IJobParallelFor
+            {
+                [ReadOnly] public NativeArray<byte> ByteArray;
+                public NativeArray<float> FloatArray;
+
+                public void Execute(int index)
+                {
+                    int byteIndex = index * sizeof(float);
+                    FloatArray[index] = ReadFloatFromBytes(ByteArray, byteIndex);
+                }
+            }
+
+            public static float[] ReadArray(BinaryReader reader)
+            {
+                int count = reader.ReadInt32();
+                using var bytes = new NativeArray<byte>(reader.ReadBytes(count * sizeof(int)), Allocator.TempJob);
+                using var array = new NativeArray<float>(count, Allocator.TempJob);
+                var job = new ConvertByteToFloatJob()
+                {
+                    ByteArray = bytes,
+                    FloatArray = array
+                };
+                var handle = job.Schedule(count, SystemInfo.processorCount);
+                handle.Complete();
+                return array.ToArray();
+            }
+
+            public static void Write(float[] array, BinaryWriter writer)
             {
                 int count = array.Length;
                 writer.Write(count);
@@ -136,7 +250,7 @@ namespace FileSystem.IO
                     int byteIndex = index * 2 * sizeof(float);
 
                     // ByteArray에서 각 요소를 직접 변환하여 Vector3를 만듭니다.
-                    UnityEngine.Vector3 vector = new UnityEngine.Vector2(
+                    UnityEngine.Vector2 vector = new UnityEngine.Vector2(
                         ReadFloatFromBytes(ByteArray, byteIndex),
                         ReadFloatFromBytes(ByteArray, byteIndex + sizeof(float))
                     );

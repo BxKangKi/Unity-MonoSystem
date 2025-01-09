@@ -2,6 +2,6 @@ namespace MonoSystem
 {
     public interface IFixedUpdate : IUpdateSystem
     {
-        void OnFixedUpdate();
+        void OnFixedUpdate(int priority);
     }
 }

@@ -1,164 +1,159 @@
-using Cysharp.Threading.Tasks;
+using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Threading;
 
 namespace MonoSystem
 {
-    public readonly struct UpdateManager
+    public class UpdateManager : MonoSingleton<UpdateManager>
     {
-        private static readonly List<IUpdate> updates = new List<IUpdate>(0);
-        private static readonly List<IStartUpdate> startUpdates = new List<IStartUpdate>(0);
-        private static readonly List<IEndUpdate> endUpdates = new List<IEndUpdate>(0);
-        private static readonly List<IPreUpdate> preUpdates = new List<IPreUpdate>(0);
-        private static readonly List<IPostUpdate> postUpdates = new List<IPostUpdate>(0);
-        private static readonly List<IFixedUpdate> fixedUpdates = new List<IFixedUpdate>(0);
-        private static readonly List<ILateUpdate> lateUpdates = new List<ILateUpdate>(0);
-        private static CancellationTokenSource disable = new CancellationTokenSource();
-        public static void Update()
+        private void Awake()
         {
-            for (int i = 0; i < startUpdates.Count; i++)
-            {
-                startUpdates[i].OnStartUpdate();
-            }
+            DontDestroyOnLoad(gameObject);
+        }
 
-            for (int i = 0; i < preUpdates.Count; i++)
-            {
-                preUpdates[i].OnPreUpdate();
-            }
+        // using anonymous class to List<> type
+        private readonly List<(IUpdate value, int priority)> updates = new List<(IUpdate, int)>(0);
+        private readonly List<(IFixedUpdate value, int priority)> fixedUpdates = new List<(IFixedUpdate, int)>(0);
+        private readonly List<(ILateUpdate value, int priority)> lateUpdates = new List<(ILateUpdate, int)>(0);
 
-            for (int i = 0; i < updates.Count; i++)
-            {
-                updates[i].OnUpdate();
-            }
 
-            for (int i = 0; i < postUpdates.Count; i++)
+        public static void Add<T>(T value, Type type, int priority = 0) where T : IUpdateSystem
+        {
+            if (Instance != null)
             {
-                postUpdates[i].OnPostUpdate();
-            }
-
-            for (int i = 0; i < endUpdates.Count; i++)
-            {
-                endUpdates[i].OnEndUpdate();
+                Instance.AddByType(value, type, priority);
             }
         }
 
-        public static void FixedUpdate()
+        public static void Add<T>(T value, int priority = 0) where T : IUpdateSystem
         {
-            for (int i = 0; i < fixedUpdates.Count; i++)
+            if (Instance != null)
             {
-                fixedUpdates[i].OnFixedUpdate();
-            }
-        }
-
-        public static void LateUpdate()
-        {
-            for (int i = 0; i < lateUpdates.Count; i++)
-            {
-                lateUpdates[i].OnLateUpdate();
-            }
-        }
-
-
-        public static void OnEnable()
-        {
-            disable?.Dispose();
-            disable = new CancellationTokenSource();
-        }
-
-        public static void OnDisable()
-        {
-            disable?.Cancel();
-        }
-
-        public static void Add<T>(T value) where T : IUpdateSystem
-        {
-            if (value is IUpdate)
-            {
-                AddUpdate<IUpdate>(updates, value as IUpdate).Forget();
-            }
-            if (value is IStartUpdate)
-            {
-                AddUpdate<IStartUpdate>(startUpdates, value as IStartUpdate).Forget();
-            }
-            if (value is IEndUpdate)
-            {
-                AddUpdate<IEndUpdate>(endUpdates, value as IEndUpdate).Forget();
-            }
-            if (value is IPreUpdate)
-            {
-                AddUpdate<IPreUpdate>(preUpdates, value as IPreUpdate).Forget();
-            }
-            if (value is IPostUpdate)
-            {
-                AddUpdate<IPostUpdate>(postUpdates, value as IPostUpdate).Forget();
-            }
-            if (value is IFixedUpdate)
-            {
-                AddUpdate<IFixedUpdate>(fixedUpdates, value as IFixedUpdate).Forget();
-            }
-            if (value is ILateUpdate)
-            {
-                AddUpdate<ILateUpdate>(lateUpdates, value as ILateUpdate).Forget();
-            }
-        }
-
-
-
-        private static async UniTaskVoid AddUpdate<T>(List<T> list, T value)
-        {
-            await UniTask.DelayFrame(2, cancellationToken: disable.Token);
-            if (!list.Contains(value))
-            {
-                list.Add(value);
+                Instance.AddByValue(value, priority);
             }
         }
 
         public static void Remove<T>(T value) where T : IUpdateSystem
         {
+            if (Instance != null)
+            {
+                Instance.RemoveInternal(value);
+            }
+        }
+
+        private void Update()
+        {
+            for (int i = 0; i < updates.Count; i++)
+            {
+                updates[i].value.OnUpdate(updates[i].priority);
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            for (int i = 0; i < fixedUpdates.Count; i++)
+            {
+                fixedUpdates[i].value.OnFixedUpdate(fixedUpdates[i].priority);
+            }
+        }
+
+        private void LateUpdate()
+        {
+            for (int i = 0; i < lateUpdates.Count; i++)
+            {
+                lateUpdates[i].value.OnLateUpdate(lateUpdates[i].priority);
+            }
+        }
+
+
+        private void AddByType<T>(T value, Type type, int priority) where T : IUpdateSystem
+        {
+            if (type == typeof(IUpdate))
+            {
+                StartCoroutine(AddUpdate(value as IUpdate, priority));
+            }
+            else if (type == typeof(IFixedUpdate))
+            {
+                StartCoroutine(AddFixedUpdate(value as IFixedUpdate, priority));
+            }
+            else if (type == typeof(ILateUpdate))
+            {
+                StartCoroutine(AddLateUpdate(value as ILateUpdate, priority));
+            }
+        }
+
+        private void AddByValue<T>(T value, int priority) where T : IUpdateSystem
+        {
             if (value is IUpdate)
             {
-                RemoveUpdate(updates, value as IUpdate);
+                StartCoroutine(AddUpdate(value as IUpdate, priority));
             }
-
-            if (value is IStartUpdate)
-            {
-                RemoveUpdate(startUpdates, value as IStartUpdate);
-            }
-
-            if (value is IEndUpdate)
-            {
-                RemoveUpdate(endUpdates, value as IEndUpdate);
-            }
-
-            if (value is IPreUpdate)
-            {
-                RemoveUpdate(preUpdates, value as IPreUpdate);
-            }
-
-            if (value is IPostUpdate)
-            {
-                RemoveUpdate(postUpdates, value as IPostUpdate);
-            }
-
             if (value is IFixedUpdate)
             {
-                RemoveUpdate(fixedUpdates, value as IFixedUpdate);
+                StartCoroutine(AddFixedUpdate(value as IFixedUpdate, priority));
             }
-
             if (value is ILateUpdate)
             {
-                RemoveUpdate(lateUpdates, value as ILateUpdate);
+                StartCoroutine(AddLateUpdate(value as ILateUpdate, priority));
+            }
+        }
+
+
+
+        private IEnumerator AddUpdate(IUpdate value, int priority)
+        {
+            yield return null;
+            yield return null;
+            updates.Add((value, priority));
+            updates.Sort((a, b) => a.priority.CompareTo(b.priority));
+        }
+
+        private IEnumerator AddFixedUpdate(IFixedUpdate value, int priority)
+        {
+            yield return null;
+            yield return null;
+            fixedUpdates.Add((value, priority));
+            updates.Sort((a, b) => a.priority.CompareTo(b.priority));
+        }
+
+        private IEnumerator AddLateUpdate(ILateUpdate value, int priority)
+        {
+            yield return null;
+            yield return null;
+            lateUpdates.Add((value, priority));
+            lateUpdates.Sort((a, b) => a.priority.CompareTo(b.priority));
+        }
+
+
+        private void RemoveInternal<T>(T value) where T : IUpdateSystem
+        {
+            if (value is IUpdate)
+            {
+                updates.RemoveAll(updates => updates.value == value as IUpdate);
+            }
+            if (value is IFixedUpdate)
+            {
+                fixedUpdates.RemoveAll(fixedUpdates => fixedUpdates.value == value as IFixedUpdate);
+            }
+            if (value is ILateUpdate)
+            {
+                lateUpdates.RemoveAll(lateUpdates => lateUpdates.value == value as ILateUpdate);
             }
 
         }
 
 
-        private static void RemoveUpdate<T>(List<T> list, T value)
+        private void OnDestroy()
         {
-            if (list.Contains(value))
-            {
-                list.Remove(value);
-            }
+            ResetList(updates);
+            ResetList(fixedUpdates);
+            ResetList(lateUpdates);
+        }
+
+        private void ResetList<T>(List<T> list)
+        {
+            list.Clear();
+            list.TrimExcess();
         }
     }
 }

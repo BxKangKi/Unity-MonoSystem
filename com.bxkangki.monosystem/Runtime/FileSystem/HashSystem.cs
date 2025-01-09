@@ -5,7 +5,7 @@ using System.Security.Cryptography;
 
 namespace FileSystem
 {
-    public struct HashSystem
+    public readonly struct HashSystem
     {
         /// <summary>
         /// Generate GUID string from MD5 hash from string
@@ -59,6 +59,14 @@ namespace FileSystem
             return System.Guid.NewGuid().ToString();
         }
 
+        public static int GetGUIDInt()
+        {
+            using (SHA256 sha256Hash = SHA256.Create())
+            {
+                return BitConverter.ToInt32(sha256Hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(GetGUID())));
+            }
+        }
+
         /// <summary>
         /// Generate SHA256 hash string from string
         /// </summary>
@@ -66,12 +74,10 @@ namespace FileSystem
         /// <returns></returns>
         public static string GetFixedHashCode(string str)
         {
-            byte[] hashBytes;
             using (SHA256 sha256Hash = SHA256.Create())
             {
-                hashBytes = sha256Hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(str));
+                return BitConverter.ToString(sha256Hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(str))).Replace("-", "");
             }
-            return BitConverter.ToString(hashBytes).Replace("-", "");
         }
 
         /// <summary>
@@ -81,12 +87,10 @@ namespace FileSystem
         /// <returns></returns>
         public static string GetFixedHashCode(byte[] bytes)
         {
-            byte[] hashBytes;
             using (SHA256 sha256Hash = SHA256.Create())
             {
-                hashBytes = sha256Hash.ComputeHash(bytes);
+                return BitConverter.ToString(sha256Hash.ComputeHash(bytes)).Replace("-", "");
             }
-            return BitConverter.ToString(hashBytes).Replace("-", "");
         }
     }
 }

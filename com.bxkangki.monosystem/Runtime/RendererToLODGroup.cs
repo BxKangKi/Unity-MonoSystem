@@ -1,8 +1,9 @@
+using System;
 using UnityEngine;
 
 namespace MonoSystem
 {
-    public class RendererToLODGroup
+    public class RendererToLODGroup : IDisposable
     {
         public GameObject gameObject;
         public float cullingPoint = 0.01f;
@@ -21,5 +22,7 @@ namespace MonoSystem
                 lodGroup.animateCrossFading = animate;
             }
         }
+
+        public void Dispose() { }
     }
 }

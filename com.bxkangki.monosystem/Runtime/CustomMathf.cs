@@ -3,7 +3,7 @@ using Unity.Mathematics;
 
 namespace MonoSystem
 {
-    public struct CustomMathf
+    public readonly struct CustomMathf
     {
         public const float Rad2Deg = 180f / math.PI;
         public const float Epsilon = 0.00001f;
@@ -73,6 +73,101 @@ namespace MonoSystem
             quaternion.value.w = (m01 - m10) * num2;
             return quaternion;
         }
+
+
+
+        public static float3 ToEulerRad(Quaternion q)
+        {
+            float3 eulerAngles = float3.zero;
+
+            // Roll (Z-axis rotation)
+            float sinRCosP = 2.0f * (q.w * q.z + q.x * q.y);
+            float cosRCosP = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+            eulerAngles.z = math.atan2(sinRCosP, cosRCosP);
+
+            // Pitch (X-axis rotation)
+            float sinP = 2.0f * (q.w * q.x - q.z * q.y);
+            if (math.abs(sinP) >= 1.0f)
+                eulerAngles.x = math.sign(sinP) * (math.PI / 2.0f); // Clamp to 90 degrees
+            else
+                eulerAngles.x = math.asin(sinP);
+
+            // Yaw (Y-axis rotation)
+            float sinYCosP = 2.0f * (q.w * q.y + q.z * q.x);
+            float cosYCosP = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+            eulerAngles.y = math.atan2(sinYCosP, cosYCosP);
+
+            return eulerAngles;
+        }
+
+
+        public static float3 MakePositive(float3 euler)
+        {
+            float num = -0.005729578f;
+            float num2 = 360f + num;
+            if (euler.x < num)
+            {
+                euler.x += 360f;
+            }
+            else if (euler.x > num2)
+            {
+                euler.x -= 360f;
+            }
+            if (euler.y < num)
+            {
+                euler.y += 360f;
+            }
+            else if (euler.y > num2)
+            {
+                euler.y -= 360f;
+            }
+            if (euler.z < num)
+            {
+                euler.z += 360f;
+            }
+            else if (euler.z > num2)
+            {
+                euler.z -= 360f;
+            }
+            return euler;
+        }
+
+        public static float3 EulerAngles(quaternion q)
+        {
+            return MakePositive(ToEulerRad(q) * 57.29578f);
+        }
+
+
+        public static float3 Multiply(float3 v, quaternion q)
+        {
+            // Quaternion의 실수와 허수 부분 분리
+            float3 u = q.value.xyz;
+            float s = q.value.w;
+
+            // 벡터 회전 공식 적용
+            return 2.0f * math.dot(u, v) * u +
+                   (s * s - math.dot(u, u)) * v +
+                   2.0f * s * math.cross(u, v);
+        }
+
+
+        public static quaternion Euler(float3 eulerRad)
+        {
+            eulerRad *= (math.PI / 180f);
+            float cx = math.cos(eulerRad.x * 0.5f);
+            float sx = math.sin(eulerRad.x * 0.5f);
+            float cy = math.cos(eulerRad.y * 0.5f);
+            float sy = math.sin(eulerRad.y * 0.5f);
+            float cz = math.cos(eulerRad.z * 0.5f);
+            float sz = math.sin(eulerRad.z * 0.5f);
+            return new quaternion(
+                sx * cy * cz - cx * sy * sz, // X
+                cx * sy * cz + sx * cy * sz, // Y
+                cx * cy * sz - sx * sy * cz, // Z
+                cx * cy * cz + sx * sy * sz  // W
+            );
+        }
+
 
         public static float SmoothDampAngle(float current, float target, ref float currentVelocity, float smoothTime, float deltaTime, float maxSpeed = float.MaxValue)
         {
